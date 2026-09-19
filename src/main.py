@@ -1,4 +1,4 @@
-
+from utils import normalize_card
 
 
 
@@ -122,10 +122,7 @@ while True:
     # Nytt input har tillkommit
     card_number = GUI.readInput()
 
-    # Nya kortläsare läser 4 bytes istället för 3, så vi tar endast de sista 3 bytesen
-    card_number = hex(int(card_number, 10))
-    # cursed som fan lol
-    card_number = str(int(card_number[-6:], 16))
+    card_number = normalize_card(card_number)
 
     if card_number in commands:
         # Om det var ett av specialkommandon i variabeln commands, kör
