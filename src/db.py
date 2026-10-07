@@ -1,5 +1,5 @@
 import sqlite3
-
+from src.helpers.utils import normalize_card
 db = sqlite3.connect('members.db')
 
 def init_db():
@@ -16,11 +16,12 @@ def init_db():
     db.commit()
 
 def get_member(card_number):
+    card_number = normalize_card(card_number)
     cursor = db.cursor()
     cursor.execute("SELECT * FROM members WHERE card_number=?", (card_number,))
     return cursor.fetchone()
 
-def add_member(card_number, name, boardmember, comment):
+def add_member(card_number, name, boardmember=None, comment=None):
     cursor = db.cursor()
     cursor.execute("INSERT INTO members (card_number, name, boardmember, comment) VALUES (?, ?, ?, ?)",
                    (card_number, name, boardmember, comment))
@@ -67,3 +68,11 @@ def update_member(card_number, *, name=_UNSET, boardmember=_UNSET,
     )
     db.commit()
     return cursor.rowcount > 0
+
+
+if __name__ == "__main__":
+    con = sqlite3.connect("members.db")
+    con.row_factory = sqlite3.Row
+    for row in con.execute("SELECT * FROM members LIMIT 200"):
+        print(dict(row))
+    con.close()

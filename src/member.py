@@ -13,6 +13,10 @@ class Member(object):
     # Aktivt medlemsregister
     member_register = {}
 
+    @classmethod
+    def from_row(cls, row):
+        return cls(row["card_number"], row["name"], bool(row["boardmember"]))
+
     # Konstruktor
     def __init__(self, key_card, name, board_member = False, latest_activity = None):
         self.key_card = key_card

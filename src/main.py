@@ -1,9 +1,10 @@
-from utils import normalize_card
+from helpers.utils import normalize_card
 
 
 
 from member import *
 import excel_handler as XlsxHandler
+import db
 import statistics_handler as StatLogger
 import gui_module as GUI
 from datetime import datetime, timedelta
@@ -81,6 +82,45 @@ def timedFunctions():
         GUI.updateNames(Member.checked_in_members, 'member')
         GUI.updateNames(Member.checked_in_styret, 'styret')
         GUI.hideMessage()
+
+def processInput():
+        card_number = GUI.readInput()
+        if card_number in commands:
+            commands[card_number]()
+        else:
+            row = db.get_member(card_number) or db.get_member(normalize_card(card_number))
+
+            if row is None:
+                GUI.message(f"Unknown card: {card_number}", 2)
+            else:
+                # Returns the stored Member if they were checked in, else None
+                member = Member.checkOut(card_number)
+    
+                if member is not None:
+                    # Was checked in -> check out
+                    GUI.message('Goodbye %s' % member.getName(), 2)
+    
+                    if member.getBoardmember():
+                        GUI.updateNames(Member.checked_in_styret, 'styret')
+                    else:
+                        GUI.updateNames(Member.checked_in_members, 'member')
+    
+                    StatLogger.checkOutStat(member)
+                    XlsxHandler.saveToLog(member)
+                    XlsxHandler.save()
+                else:
+                    # Wasn't checked in -> check in
+                    member = Member.from_row(row)
+                    Member.checkIn(member)
+    
+                    GUI.message('Welcome %s' % member.getName(), 2)
+    
+                    if member.getBoardmember():
+                        StatLogger.tickCheckInsStyret()
+                        GUI.updateNames(Member.checked_in_styret, 'styret')
+                    else:
+                        StatLogger.tickCheckInsMember()
+                        GUI.updateNames(Member.checked_in_members, 'member')
         
 # Kommandon som kan skrivas i programmet för att kalla på motsvarande funktion
 commands = {
@@ -120,113 +160,7 @@ while True:
             flag = False
 
     # Nytt input har tillkommit
-    card_number = GUI.readInput()
+    processInput()
 
-    card_number = normalize_card(card_number)
 
-    if card_number in commands:
-        # Om det var ett av specialkommandon i variabeln commands, kör
-        # funktionen
-        commands[card_number]()
-    else:
-        # Annars var det en medlem som checkade in. Spara numret parsat
-        # med 0, som i excelfilen
-        card_number = '0,' + card_number
-        time_now_str = date_time_now.strftime("%H:%M:%S")
-        date_now_str = date_time_now.strftime("%Y-%m-%d")
-        # Antingen var det en incheckad medlem eller inte. Var medlemmen
-        # incheckad redan så checkas denne ut av klassmetoden checkout
-        member = Member.checkOut(card_number)
-        
-        if member != None:
-            # Om checkOut returnerar ett namn
-            GUI.message('Goodbye %s' %member.getName(), 2)
-            
-            if member.getBoardmember():
-                GUI.updateNames(Member.checked_in_styret, 'styret')
-            else:
-                GUI.updateNames(Member.checked_in_members, 'member')
-                
-            
-            # Spara den aktuella loggboken i excel
-            StatLogger.checkOutStat(member)
-            XlsxHandler.saveToLog(member)
-            XlsxHandler.save()
-
-        elif card_number in Member.member_register:
-            # checkOut returnerade None och numret fanns i medlemsregitret
-            # Spara medlemsobjektet lokalt och checka in det.
-            member_local = Member.member_register[card_number]
-            Member.checkIn(member_local)
-                
-            
-            GUI.message('Welcome %s' %member_local.getName(), 2)
-            
-            #XlsxHandler.checkinUniqueLogger(card_number)
-            # Beroende på om det är en styrelsemedlem eller ej så uppdateras
-            # antingen texten tillhörande medlemmar eller den tillhörande
-            # styret
-            if (member_local.getBoardmember()):
-                StatLogger.tickCheckInsStyret()
-                GUI.updateNames(Member.checked_in_styret, 'styret')
-            else:
-                StatLogger.tickCheckInsMember()
-                GUI.updateNames(Member.checked_in_members, 'member')
-        # Om kortnumret inte finns sparat i medlemsdatabasen, initiera bytesprocessen
-        else:
-            old_card_number = card_number
-            date_time_to_wait = datetime.now() + timedelta(0,time_to_wait)
-
-            # Avbryts antingen om tiden går ut eller om ett nytt kort scannas
-            while (not GUI.hasLines()) and (date_time_to_wait > datetime.now()):
-                message_string = ("Card not recognised!\nPlease scan again to start a transfer\n"
-                                  "process, or wait %s seconds to cancel"
-                                  %secondCounter(date_time_to_wait))
-                GUI.message(message_string)
-            # 1 Om kort scannades
-            if (GUI.hasLines()):
-                new_card_number = '0,' + GUI.readInput()
-                # 2 Om samma kort scannades
-                if new_card_number == old_card_number:
-                    date_time_to_wait = datetime.now() + timedelta(0,time_to_wait)
-
-                    # Avbryts antingen om tiden går ut eller om ett nytt kort scannas
-                    while (not GUI.hasLines()) and (date_time_to_wait > datetime.now()):
-                        message_string = ("Now scan your old card that you want to"
-                                          " transfer\nyour data from, or wait %s seconds to"
-                                          "cancel" %secondCounter(date_time_to_wait))
-                        GUI.message(message_string)
-                    # 3 Om ett nytt kort scannades
-                    if GUI.hasLines():
-                        old_card_number = '0,' + GUI.readInput()
-                        # Om det gamla kortet finns i databasen så byts det ut
-                        if old_card_number in Member.member_register:
-                            local_member = Member.member_register[old_card_number]
-                            local_member.changeKeyCard(new_card_number)
-                            # Kortet byts även ut i statistiken för att inte felaktigt registrera
-                            # för många medlemmar
-                            StatLogger.changeCardStat(new_card_number, old_card_number)
-                            XlsxHandler.saveMemberlistToFile()
-
-                            #changeCardUniqueLogger(new_card_number, old_card_number):
-                            # Annars så meddelas användare att kortet inte finns i databasen
-                        else:
-                            message_string = ("Old card not in member database..."
-                                              "\nTransfer failed.")
-                            GUI.message(message_string, message_update_time_long)
-                    # 3 Om inget kort scannades
-                    else:
-                        message_string = "Aborted!"
-                        GUI.message(message_string, message_update_time_short)
-                        GUI.removeInput()
-                # 2 Om annat kort scannades
-                else:
-                    message_string = "Aborted!"
-                    GUI.message(message_string, message_update_time_short)
-                    GUI.removeInput()
-            # 1 Annars avbryt
-            else:
-                message_string = "Aborted!"
-                GUI.message(message_string, message_update_time_short)
-                GUI.removeInput()
 

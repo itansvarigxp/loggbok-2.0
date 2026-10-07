@@ -1,5 +1,5 @@
 import pytest
-from src.utils import normalize_card
+from src.helpers.utils import normalize_card
 
 def test_normalize_card():
     assert normalize_card("10214916") == "10214916"
