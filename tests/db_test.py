@@ -229,6 +229,8 @@ def test_update_is_committed_to_disk(alice):
         name = other.execute(
             "SELECT name FROM members WHERE card_number='123'").fetchone()[0]
     assert name == "Alicia"
+
+    
  
  
 def db_path_of(conn):

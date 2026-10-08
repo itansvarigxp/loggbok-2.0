@@ -1,6 +1,13 @@
 import sqlite3
-from src.helpers.utils import normalize_card
-db = sqlite3.connect('members.db')
+from helpers.utils import normalize_card
+import os
+from pathlib import Path
+
+
+DB_PATH = Path("program/members.db").resolve()
+print(DB_PATH)
+db = sqlite3.connect(DB_PATH)
+db.row_factory = sqlite3.Row
 
 def init_db():
     cursor = db.cursor()
@@ -22,15 +29,34 @@ def get_member(card_number):
     return cursor.fetchone()
 
 def add_member(card_number, name, boardmember=None, comment=None):
+    card_number = normalize_card(card_number)
     cursor = db.cursor()
-    cursor.execute("INSERT INTO members (card_number, name, boardmember, comment) VALUES (?, ?, ?, ?)",
-                   (card_number, name, boardmember, comment))
-    db.commit()
+    exists = cursor.execute(
+        "SELECT 1 FROM members WHERE card_number = ?", (card_number,)).fetchone()
+    if exists:
+        return False
+
+    try:
+        cursor.execute("INSERT INTO members (card_number, name, boardmember, comment) VALUES (?, ?, ?, ?)",
+                    (card_number, name, boardmember, comment))
+        db.commit()
+    except Exception as e:
+        print(f"Error adding member: {e}")
+        db.rollback()
+        return False
+    return True
 
 def remove_member(card_number):
+    card_number = normalize_card(card_number)
     cursor = db.cursor()
-    cursor.execute("DELETE FROM members WHERE card_number=?", (card_number,))
-    db.commit()
+    try:
+        cursor.execute("DELETE FROM members WHERE card_number=?", (card_number,))
+        db.commit()
+        return cursor.rowcount > 0
+    except Exception as e:
+        print(f"Error removing member: {e}")
+        db.rollback()
+        return False
 
 # Sentinel meaning "caller did not pass this argument". Needed because None is a
 # legitimate value (e.g. clearing a comment), so it can't also mean "leave alone".
@@ -62,16 +88,26 @@ def update_member(card_number, *, name=_UNSET, boardmember=_UNSET,
  
     assignments = ", ".join(f"{col}=?" for col in changes)
     cursor = db.cursor()
-    cursor.execute(
-        f"UPDATE members SET {assignments} WHERE card_number=?",
-        (*changes.values(), card_number),
-    )
-    db.commit()
-    return cursor.rowcount > 0
+    try:
+        cursor.execute(
+            f"UPDATE members SET {assignments} WHERE card_number=?",
+            (*changes.values(), card_number),
+        )
+        db.commit()
+        return cursor.rowcount > 0
+    except Exception as e:
+        print(f"Error updating member: {e}")
+        db.rollback()
+        return False
+
+def list_members():
+    cursor = db.cursor()
+    cursor.execute("SELECT id, card_number, name, boardmember, comment FROM members ORDER BY id")
+    return cursor.fetchall()
 
 
 if __name__ == "__main__":
-    con = sqlite3.connect("members.db")
+    con = sqlite3.connect(DB_PATH)
     con.row_factory = sqlite3.Row
     for row in con.execute("SELECT * FROM members LIMIT 200"):
         print(dict(row))

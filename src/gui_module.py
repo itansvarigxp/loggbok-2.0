@@ -10,7 +10,7 @@ from functools import reduce
 import random
 import paths
 import operator
-import pyautogui	
+# import pyautogui	
 
 
 # Variabler för namn, font, storlek och så vidare i vyn

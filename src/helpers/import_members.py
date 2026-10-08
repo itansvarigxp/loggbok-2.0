@@ -146,10 +146,15 @@ def read_rows(path):
                 continue
 
             if card in seen:
-                result.errors.append(
-                    (excel_row, f"duplicate key number {card} (also on row {seen[card]})"))
+                first_row, first_name, first_board = seen[card]
+                msg = (f"duplicate key number {card} (first seen on row "
+                       f"{first_row}); this row ignored")
+                if (name, board) != (first_name, first_board):
+                    msg += (f" - NOTE: differs from first row "
+                            f"(name {first_name!r}, board {first_board})")
+                result.warnings.append((excel_row, msg))
                 continue
-            seen[card] = excel_row
+            seen[card] = (excel_row, name, board)
 
             key = card.lstrip("0") or "0"
             if key in seen_nozero and seen_nozero[key][0] != card:
@@ -248,3 +253,4 @@ def main(argv=None):
 
 if __name__ == "__main__":
     sys.exit(main())
+    

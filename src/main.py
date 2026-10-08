@@ -12,6 +12,8 @@ import sys
 import os
 #import pyautogui	*********** Flyttas 
 
+db.init_db()
+
 message_update_time_short = 2
 message_update_time_long = 5
 time_to_wait = 5
@@ -88,13 +90,15 @@ def processInput():
         if card_number in commands:
             commands[card_number]()
         else:
-            row = db.get_member(card_number) or db.get_member(normalize_card(card_number))
+            row = db.get_member(card_number)
+            if row is None:
+                row = db.get_member(normalize_card(card_number))
 
             if row is None:
                 GUI.message(f"Unknown card: {card_number}", 2)
             else:
                 # Returns the stored Member if they were checked in, else None
-                member = Member.checkOut(card_number)
+                member = Member.checkOut(row["card_number"])
     
                 if member is not None:
                     # Was checked in -> check out
